@@ -1292,4 +1292,9 @@ public class TableFilter implements ColumnResolver {
         }
     }
 
+    //added as instructed in the exercise
+    public Expression getFullCondition(){
+        return fullCondition;
+    }
+
 }
