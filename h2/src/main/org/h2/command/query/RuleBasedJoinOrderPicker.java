@@ -86,7 +86,6 @@ public class RuleBasedJoinOrderPicker {
         return bestFilter;
     }
 
-    // Step 3: Check if the current table can be joined with any table already in the ordered list
     private boolean canJoinWithOrderedTables(List<TableFilter> ordered, TableFilter candidate) {
         String candidateTable = candidate.getTable().getName();
         
@@ -104,14 +103,12 @@ public class RuleBasedJoinOrderPicker {
         List<TableFilter> orderedFilters = new ArrayList<>();
         Set<TableFilter> remaining = new HashSet<>(Arrays.asList(filters));
 
-        // Step 1: Find the smallest table to start
         TableFilter smallest = findSmallestTable(remaining);
         if (smallest != null) {
             orderedFilters.add(smallest);
             remaining.remove(smallest);
         }
 
-        // Step 2: Iteratively add the smallest valid joinable table
         while (!remaining.isEmpty()) {
             TableFilter next = findNextBest(orderedFilters, remaining);
             if (next != null) {
