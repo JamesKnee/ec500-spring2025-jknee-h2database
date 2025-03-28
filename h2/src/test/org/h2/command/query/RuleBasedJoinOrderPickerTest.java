@@ -1,12 +1,12 @@
-package org.h2.test.command.query;
+package org.h2.command.query;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.h2.command.query.RuleBasedJoinOrderPicker;
 import org.h2.engine.Database;
 import org.h2.engine.SessionLocal;
 import org.h2.expression.Expression;
 import org.h2.expression.ExpressionColumn;
+import org.h2.expression.condition.BooleanTest;
 import org.h2.expression.condition.Comparison;
 import org.h2.expression.condition.ConditionAndOr;
 import org.h2.expression.condition.ConditionAndOrN;
@@ -45,9 +45,10 @@ public class RuleBasedJoinOrderPickerTest {
   ExpressionColumn orderLinesCustomerId;
 
   @BeforeEach
-  public void setUp() {
+  public void setUp(){
     mockSession = Mockito.mock(SessionLocal.class);
     Mockito.when(mockSession.nextObjectId()).thenReturn(1);
+
     mockDatabase = Mockito.mock(Database.class);
 
     // for the purposes of this unit test, we will use four mock tables with
@@ -102,12 +103,9 @@ public class RuleBasedJoinOrderPickerTest {
   }
 
   @Test
-  public void bestOrder_singleTable() {
+  public void bestOrder_singleTable(){
     TableFilter tableFilter = new TableFilter(mockSession, customersTable, "customers", true, null, 0, null);
     tableFilter.setFullCondition(null);
-
-    Mockito.when(customersCustomerId.getTableFilter()).thenReturn(tableFilter);
-    Mockito.when(customersLocationId.getTableFilter()).thenReturn(tableFilter);
 
     List<TableFilter> expectedFilters = List.of(tableFilter);
     TableFilter[] inputFilters = {tableFilter};
@@ -119,7 +117,7 @@ public class RuleBasedJoinOrderPickerTest {
   }
 
   @Test
-  public void bestOrder_twoTablesSingleJoin() {
+  public void bestOrder_twoTablesSingleJoin(){
     Expression locationsAndCustomers = new Comparison(
             Comparison.EQUAL,
             locationsLocationId,
@@ -138,12 +136,7 @@ public class RuleBasedJoinOrderPickerTest {
     TableFilter customersFilter = new TableFilter(mockSession, customersTable, "customers", true, null, 0, null);
     customersFilter.setFullCondition(fullCondition);
 
-    Mockito.when(locationsLocationId.getTableFilter()).thenReturn(locationsFilter);
-
-    Mockito.when(customersCustomerId.getTableFilter()).thenReturn(customersFilter);
-    Mockito.when(customersLocationId.getTableFilter()).thenReturn(customersFilter);
-
-    // locations are smaller so should go first
+    // locations is smaller so should go first
     List<TableFilter> expectedFilters = List.of(locationsFilter, customersFilter);
 
     TableFilter[] inputFilters = {customersFilter, locationsFilter};
@@ -155,7 +148,7 @@ public class RuleBasedJoinOrderPickerTest {
   }
 
   @Test
-  public void bestOrder_threeTablesMultipleJoins() {
+  public void bestOrder_threeTablesMultipleJoins(){
     Expression fullCondition = new ConditionAndOrN(ConditionAndOr.AND,
             List.of(
                     new Comparison(Comparison.EQUAL, locationsLocationId, customersLocationId, false),
@@ -173,15 +166,6 @@ public class RuleBasedJoinOrderPickerTest {
     TableFilter ordersFilter = new TableFilter(mockSession, ordersTable, "orders", true, null, 0, null);
     customersFilter.setFullCondition(fullCondition);
 
-    Mockito.when(locationsLocationId.getTableFilter()).thenReturn(locationsFilter);
-
-    Mockito.when(customersCustomerId.getTableFilter()).thenReturn(customersFilter);
-    Mockito.when(customersLocationId.getTableFilter()).thenReturn(customersFilter);
-
-    Mockito.when(ordersOrderId.getTableFilter()).thenReturn(ordersFilter);
-    Mockito.when(ordersLocationId.getTableFilter()).thenReturn(ordersFilter);
-    Mockito.when(ordersCustomerId.getTableFilter()).thenReturn(ordersFilter);
-
     // size order is locations, customers, orders
     List<TableFilter> expectedFilters = List.of(locationsFilter, customersFilter, ordersFilter);
 
@@ -194,7 +178,7 @@ public class RuleBasedJoinOrderPickerTest {
   }
 
   @Test
-  public void bestOrder_fourTablesMultipleJoins() {
+  public void bestOrder_fourTablesMultipleJoins(){
     Expression fullCondition = new ConditionAndOrN(ConditionAndOr.AND,
             List.of(
                     new Comparison(Comparison.EQUAL, locationsLocationId, customersLocationId, false),
@@ -217,20 +201,6 @@ public class RuleBasedJoinOrderPickerTest {
 
     TableFilter orderLinesFilter = new TableFilter(mockSession, orderLinesTable, "orderLines", true, null, 0, null);
     orderLinesFilter.setFullCondition(fullCondition);
-
-    Mockito.when(locationsLocationId.getTableFilter()).thenReturn(locationsFilter);
-
-    Mockito.when(customersCustomerId.getTableFilter()).thenReturn(customersFilter);
-    Mockito.when(customersLocationId.getTableFilter()).thenReturn(customersFilter);
-
-    Mockito.when(ordersOrderId.getTableFilter()).thenReturn(ordersFilter);
-    Mockito.when(ordersLocationId.getTableFilter()).thenReturn(ordersFilter);
-    Mockito.when(ordersCustomerId.getTableFilter()).thenReturn(ordersFilter);
-
-    Mockito.when(orderLinesOrderLineId.getTableFilter()).thenReturn(orderLinesFilter);
-    Mockito.when(orderLinesOrderId.getTableFilter()).thenReturn(orderLinesFilter);
-    Mockito.when(orderLinesLocationId.getTableFilter()).thenReturn(orderLinesFilter);
-    Mockito.when(orderLinesCustomerId.getTableFilter()).thenReturn(orderLinesFilter);
 
     // size order is locations, customers, orders, orderLines
     List<TableFilter> expectedFilters = List.of(locationsFilter, customersFilter, ordersFilter, orderLinesFilter);
