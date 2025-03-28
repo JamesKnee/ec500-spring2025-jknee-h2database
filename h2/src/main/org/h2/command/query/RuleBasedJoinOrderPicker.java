@@ -1,30 +1,63 @@
 package org.h2.command.query;
 
-//I know this is bad practice, but I just didn't to add includes for what I needed
 import java.util.*;
 import org.h2.engine.SessionLocal;
 import org.h2.table.TableFilter;
 import org.h2.expression.Expression;
-import org.h2.expression.ExpressionColumn;
 
-/**
- * Determines the best join order by following specific rules:
- * 1. Never introduce a cartesian product (only join tables with explicit ON conditions).
- * 2. Among valid join candidates, choose the one with the lowest row count.
- */
 public class RuleBasedJoinOrderPicker {
     private final SessionLocal session;
     private final TableFilter[] filters;
+    private final Map<String, Set<String>> joinMap;
 
     public RuleBasedJoinOrderPicker(SessionLocal session, TableFilter[] filters) {
         this.session = session;
         this.filters = filters;
+        this.joinMap = new HashMap<>();
+        buildJoinMap();
+    }
+
+    // Step 1: Build the map of join relationships
+    private void buildJoinMap() {
+        for (TableFilter tf : filters) {
+            String tableName = tf.getTable().getName();
+            joinMap.putIfAbsent(tableName, new HashSet<>());
+        }
+
+        for (TableFilter tf : filters) {
+            Expression condition = tf.getFullCondition();
+            if (condition != null) {
+                collectJoinConditions(condition);
+            }
+        }
+    }
+
+    // Step 2: Collect the tables involved in join conditions and update the join map
+    private void collectJoinConditions(Expression expression) {
+        if (expression == null) return;
+
+        if (expression.getSubexpressionCount() == 2 &&
+            expression.getSubexpression(0).getSubexpressionCount() == 0 &&
+            expression.getSubexpression(1).getSubexpressionCount() == 0) {
+
+            String tableName1 = expression.getSubexpression(0).getTableName();
+            String tableName2 = expression.getSubexpression(1).getTableName();
+            
+            // Add each table to the other table's list in the map
+            joinMap.get(tableName1).add(tableName2);
+            joinMap.get(tableName2).add(tableName1);
+        }
+
+        // Recursively check sub-expressions
+        for (int i = 0; i < expression.getSubexpressionCount(); i++) {
+            collectJoinConditions(expression.getSubexpression(i));
+        }
     }
 
     private TableFilter findSmallestTable(Set<TableFilter> remaining) {
         TableFilter smallestTable = null;
         long minRowCount = Long.MAX_VALUE;
-    
+
         for (TableFilter tf : remaining) {
             long rowCount = tf.getTable().getRowCountApproximation(session);
             if (rowCount < minRowCount) {
@@ -32,16 +65,16 @@ public class RuleBasedJoinOrderPicker {
                 smallestTable = tf;
             }
         }
-    
+
         return smallestTable;
     }
 
     private TableFilter findNextBest(List<TableFilter> ordered, Set<TableFilter> remaining) {
         TableFilter bestFilter = null;
         long minRowCount = Long.MAX_VALUE;
-    
+
         for (TableFilter tf : remaining) {
-            if (hasExplicitJoinCondition(ordered, tf)) { // Ensure no cartesian product
+            if (canJoinWithOrderedTables(ordered, tf)) { // Check if the table can join with any in the ordered list
                 long rowCount = tf.getTable().getRowCountApproximation(session);
                 if (rowCount < minRowCount) {
                     minRowCount = rowCount;
@@ -49,42 +82,22 @@ public class RuleBasedJoinOrderPicker {
                 }
             }
         }
-    
+
         return bestFilter;
     }
 
-    private boolean hasExplicitJoinCondition(List<TableFilter> ordered, TableFilter candidate) {
+    // Step 3: Check if the current table can be joined with any table already in the ordered list
+    private boolean canJoinWithOrderedTables(List<TableFilter> ordered, TableFilter candidate) {
+        String candidateTable = candidate.getTable().getName();
+        
         for (TableFilter orderedFilter : ordered) {
-            Expression condition = orderedFilter.getFullCondition();
-            if (condition != null && referencesBothTables(condition, orderedFilter, candidate)) {
+            String orderedTable = orderedFilter.getTable().getName();
+            // Check if there is a join condition between the candidate table and the ordered table
+            if (joinMap.get(orderedTable).contains(candidateTable)) {
                 return true;
             }
         }
         return false;
-    }
-
-    private boolean referencesBothTables(Expression condition, TableFilter table1, TableFilter table2) {
-        Set<TableFilter> referencedTables = new HashSet<>();
-        collectReferencedTables(condition, referencedTables);
-
-        return referencedTables.contains(table1) && referencedTables.contains(table2);
-    }
-
-    private void collectReferencedTables(Expression expression, Set<TableFilter> referencedTables) {
-        if (expression == null) return;
-
-        // If the expression is a column reference, extract its table
-        if (expression instanceof ExpressionColumn) {
-            TableFilter filter = ((ExpressionColumn) expression).getTableFilter();
-            if (filter != null) {
-                referencedTables.add(filter);
-            }
-        }
-
-        // Recursively check sub-expressions
-        for (int i = 0; i < expression.getSubexpressionCount(); i++) {
-            collectReferencedTables(expression.getSubexpression(i), referencedTables);
-        }
     }
 
     public TableFilter[] bestOrder() {
