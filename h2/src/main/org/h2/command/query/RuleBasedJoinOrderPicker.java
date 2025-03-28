@@ -1,5 +1,6 @@
 package org.h2.command.query;
 
+//I know this is bad, but i don't want to keep chaning this every time i change code
 import java.util.*;
 import org.h2.engine.SessionLocal;
 import org.h2.table.TableFilter;
@@ -17,7 +18,6 @@ public class RuleBasedJoinOrderPicker {
         buildJoinMap();
     }
 
-    // Step 1: Build the map of join relationships
     private void buildJoinMap() {
         for (TableFilter tf : filters) {
             String tableName = tf.getTable().getName();
@@ -32,7 +32,6 @@ public class RuleBasedJoinOrderPicker {
         }
     }
 
-    // Step 2: Collect the tables involved in join conditions and update the join map
     private void collectJoinConditions(Expression expression) {
         if (expression == null) return;
 
